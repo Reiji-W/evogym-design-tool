@@ -20,9 +20,27 @@ from OpenGL.GLUT import *
 
 import colors
 import utils
+import time
 
-from evogym import Timer
+class Timer:
+    """ターゲットFPSでレンダリング更新を間引くための簡易タイマ。
+    viewer.Timer(30) の想定インターフェース: should_step(), step()
+    """
+    def __init__(self, target_fps: float = 60.0):
+        self.period = 1.0 / float(target_fps)
+        self._next = time.perf_counter()
 
+    def should_step(self) -> bool:
+        now = time.perf_counter()
+        if now >= self._next:
+            # 遅延していてもスリップしないよう次回時刻を再設定
+            self._next = now + self.period
+            return True
+        return False
+
+    def step(self) -> None:
+        # 既存コード互換のための no-op
+        pass
 class Viewer:
 
     has_init_glfw = False
