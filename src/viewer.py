@@ -20,6 +20,7 @@ from OpenGL.GLUT import *
 
 import colors
 import utils
+
 import time
 
 class Timer:
@@ -41,6 +42,7 @@ class Timer:
     def step(self) -> None:
         # 既存コード互換のための no-op
         pass
+
 class Viewer:
 
     has_init_glfw = False
@@ -58,21 +60,49 @@ class Viewer:
             Viewer.window_count += 1
         self.window_name = window_name
 
-        x, y, fx, fy = glfw.get_monitor_workarea(glfw.get_primary_monitor())
-        
+        # --- 既存 ---
+        # x, y, fx, fy = glfw.get_monitor_workarea(glfw.get_primary_monitor())
+
+        # --- 置き換え（変数名を衝突させない）---
+        work_x, work_y, work_w, work_h = glfw.get_monitor_workarea(glfw.get_primary_monitor())
+
         self.res_width = 600
         self.res_height = 400
-        
-        glfw.window_hint(glfw.MAXIMIZED, True)
+
+        try:
+            glfw.window_hint(glfw.COCOA_RETINA_FRAMEBUFFER, glfw.TRUE)
+        except Exception:
+            pass
+
         self.window = glfw.create_window(self.res_width, self.res_height, window_name, None, None)
+        if not self.window:
+            glfw.terminate()
+            raise RuntimeError(f'Could not create glfw window: {self.window_name}.')
 
-        mx, my = glfw.get_window_size(self.window)
+        # ▼ここで「window(pt)」「framebuffer(px）」「content scale」を必ず取り直す
+        wx, wy = glfw.get_window_size(self.window)              # pt
+        fx, fy = glfw.get_framebuffer_size(self.window)         # px
+        sx, sy = glfw.get_window_content_scale(self.window)     # 例: 2.0, 2.0
 
-        self.res_width = mx - mx//4
-        self.res_height = my
-        self.window_data = (mx, my, fy)
+        self.win_width, self.win_height = wx, wy
+        self.fb_width,  self.fb_height  = fx, fy
+        self.pixel_ratio_x, self.pixel_ratio_y = sx, sy
 
-        glfw.set_window_pos(self.window, 0, fy-my)
+        # res_* は “描画/正規化” 用に fb（px）を使う
+        self.res_width  = self.fb_width
+        self.res_height = self.fb_height
+
+        # GUI 側へ渡している window 情報（従来通り第3要素は「モニタ作業領域の高さ」）
+        self.window_data = (wx, wy, work_h)
+
+        # ▼ウィンドウを中央へ（window座標＝ptで計算）
+        center_x = work_x + (work_w - self.win_width) // 2
+        center_y = work_y + (work_h - self.win_height) // 2
+        glfw.set_window_pos(self.window, int(center_x), int(center_y))
+
+        # ※ ここで set_window_size に “fb(px)” を渡さない！(ズレの原因)
+        # もしサイズを変えたいなら window(pt) を渡す：
+        # glfw.set_window_size(self.window, self.win_width, self.win_height)
 
         self.debug = False
         if self.debug:
@@ -169,7 +199,9 @@ class Viewer:
 
     def mouse_to_node(self, grid):
         mx, my = self.get_mouse_pos()
-        mx, my = mx/self.res_width*2-1, -(my/self.res_height*2-1)
+        # mx, my = mx/self.res_width*2-1, -(my/self.res_height*2-1)
+        mx = mx / self.win_width  * 2 - 1
+        my = -(my / self.win_height * 2 - 1)
 
         grid_height = len(grid)
         grid_width = len(grid[0])
@@ -256,9 +288,14 @@ class Viewer:
     def get_window_close(self,):
         return glfw.window_should_close(self.window)
 
-    def update_resolution(self,):
-        self.res_width, self.res_height = glfw.get_window_size(self.window)
-
+    # update_resolution を fb / window 両方更新に変更
+    def update_resolution(self):
+        wx, wy = glfw.get_window_size(self.window)
+        fx, fy = glfw.get_framebuffer_size(self.window)
+        self.win_width, self.win_height = wx, wy
+        self.fb_width,  self.fb_height  = fx, fy
+        self.res_width, self.res_height = self.fb_width, self.fb_height  # ←描画は fb 基準
+    
     def update_zoom(self, ):
         if self.scroll != 0:
             self.zoom += self.scroll/abs(self.scroll)
