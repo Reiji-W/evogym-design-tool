@@ -1,3 +1,5 @@
 exported/
 .vscode/
 src/__pycache__
+
+**/*.json
