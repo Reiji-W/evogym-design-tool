@@ -121,7 +121,7 @@ class GUI:
         self.old_gs_width = None
         self.old_gs_height = None
 
-        self.save_path = 'client/env_builder/evogym-design-tool/exported'
+        self.save_path = 'client/env_builder/evogym-design-tool/envs/exported'
         self.default_type = '.json'
 
         self.save_env_func = None
